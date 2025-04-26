@@ -2,7 +2,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import { Order, OrderEvent, PollingEvent } from './types/index.js';
+import { Order, OrderEvent, PollingEvent, Promotion } from './types/index.js';
 import * as ifoodAuth from './services/ifoodAuth.js';
 import ifoodOrder from './services/ifoodOrder.js';
 
@@ -342,6 +342,181 @@ app.get('/api/force-fetch-order/:orderId', ensureAuthenticated, async (req: Requ
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     res.status(500).json({ error: `Erro ao buscar pedido ${orderId}: ${errorMessage}` });
+  }
+});
+
+// ===== NOVAS ROTAS PARA AS FUNCIONALIDADES ADICIONADAS =====
+
+// Rota para obter informações do restaurante
+app.get('/api/merchants/:merchantId', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { merchantId } = req.params;
+
+  try {
+    const merchantInfo = await ifoodOrder.getMerchantInfo(merchantId);
+    res.json(merchantInfo);
+  } catch (error) {
+    res.status(500).json({ error: `Erro ao obter informações do restaurante ${merchantId}` });
+  }
+});
+
+// Rota para obter o catálogo/cardápio do restaurante
+app.get('/api/merchants/:merchantId/catalog', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { merchantId } = req.params;
+
+  try {
+    const catalog = await ifoodOrder.getMerchantCatalog(merchantId);
+    res.json(catalog);
+  } catch (error) {
+    res.status(500).json({ error: `Erro ao obter catálogo do restaurante ${merchantId}` });
+  }
+});
+
+// Rota para atualizar disponibilidade de um item
+app.patch('/api/merchants/:merchantId/items/:itemCode/availability', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { merchantId, itemCode } = req.params;
+  const { available } = req.body;
+
+  if (available === undefined) {
+    res.status(400).json({ error: 'O parâmetro "available" é obrigatório' });
+    return;
+  }
+
+  try {
+    await ifoodOrder.updateItemAvailability(merchantId, itemCode, available);
+    res.json({ success: true, message: `Disponibilidade do item ${itemCode} atualizada com sucesso` });
+  } catch (error) {
+    res.status(500).json({ error: `Erro ao atualizar disponibilidade do item ${itemCode}` });
+  }
+});
+
+// Rota para obter histórico de pedidos
+app.get('/api/merchants/:merchantId/orders-history', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { merchantId } = req.params;
+  const { startDate, endDate } = req.query;
+
+  if (!startDate || !endDate) {
+    res.status(400).json({ error: 'Os parâmetros "startDate" e "endDate" são obrigatórios' });
+    return;
+  }
+
+  try {
+    const ordersHistory = await ifoodOrder.getOrdersHistory(
+      merchantId,
+      startDate as string,
+      endDate as string
+    );
+    res.json(ordersHistory);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao obter histórico de pedidos' });
+  }
+});
+
+// Rota para atualizar status do restaurante (aberto/fechado)
+app.post('/api/merchants/:merchantId/status', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { merchantId } = req.params;
+  const { isOpen } = req.body;
+
+  if (isOpen === undefined) {
+    res.status(400).json({ error: 'O parâmetro "isOpen" é obrigatório' });
+    return;
+  }
+
+  try {
+    await ifoodOrder.updateMerchantStatus(merchantId, isOpen);
+    res.json({
+      success: true,
+      message: `Status do restaurante ${merchantId} atualizado para ${isOpen ? 'ABERTO' : 'FECHADO'}`
+    });
+  } catch (error) {
+    res.status(500).json({ error: `Erro ao atualizar status do restaurante ${merchantId}` });
+  }
+});
+
+// Rota para criar/atualizar promoção
+app.post('/api/merchants/:merchantId/promotions', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { merchantId } = req.params;
+  const promotion: Promotion = req.body;
+
+  if (!promotion || !promotion.name || !promotion.startDate || !promotion.endDate || !promotion.type) {
+    res.status(400).json({
+      error: 'Dados da promoção incompletos. Necessário: name, startDate, endDate e type'
+    });
+    return;
+  }
+
+  try {
+    await ifoodOrder.createOrUpdatePromotion(merchantId, promotion);
+    res.json({ success: true, message: 'Promoção criada/atualizada com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao criar/atualizar promoção' });
+  }
+});
+
+// Rota para obter métricas de desempenho
+app.get('/api/merchants/:merchantId/performance', ensureAuthenticated, async (req: Request, res: Response) => {
+  const { merchantId } = req.params;
+  const { startDate, endDate } = req.query;
+
+  if (!startDate || !endDate) {
+    res.status(400).json({ error: 'Os parâmetros "startDate" e "endDate" são obrigatórios' });
+    return;
+  }
+
+  try {
+    const performance = await ifoodOrder.getMerchantPerformance(
+      merchantId,
+      startDate as string,
+      endDate as string
+    );
+    res.json(performance);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao obter métricas de desempenho' });
+  }
+});
+
+// Rota para obter dashboard com estatísticas
+app.get('/api/dashboard', ensureAuthenticated, (_req: Request, res: Response) => {
+  try {
+    // Calcular métricas com base nos pedidos em memória
+    const allOrders = Array.from(orders.values());
+
+    // Total de pedidos
+    const totalOrders = allOrders.length;
+
+    // Pedidos por status
+    const ordersByStatus = {
+      NOVO: allOrders.filter(order => order.status === 'NOVO').length,
+      CONFIRMADO: allOrders.filter(order => order.status === 'CONFIRMADO').length,
+      EM_PREPARACAO: allOrders.filter(order => order.status === 'EM_PREPARACAO').length,
+      PRONTO_PARA_RETIRADA: allOrders.filter(order => order.status === 'PRONTO_PARA_RETIRADA').length,
+      DESPACHADO: allOrders.filter(order => order.status === 'DESPACHADO').length,
+      CONCLUIDO: allOrders.filter(order => order.status === 'CONCLUIDO').length,
+      CANCELADO: allOrders.filter(order => order.status === 'CANCELADO').length
+    };
+
+    // Valor total de vendas
+    const totalSales = allOrders.reduce((total, order) => total + order.totalPrice, 0);
+
+    // Ticket médio
+    const averageTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
+
+    // Pedidos das últimas 24 horas
+    const last24Hours = new Date();
+    last24Hours.setHours(last24Hours.getHours() - 24);
+    const ordersLast24Hours = allOrders.filter(order =>
+      order.createdAt && new Date(order.createdAt) >= last24Hours
+    ).length;
+
+    // Responder com o dashboard
+    res.json({
+      totalOrders,
+      ordersByStatus,
+      totalSales,
+      averageTicket,
+      ordersLast24Hours
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao gerar dashboard' });
   }
 });
 

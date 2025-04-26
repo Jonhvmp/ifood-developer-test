@@ -18,22 +18,22 @@ let tokenExpiration: Date | null = null;
 export async function getClientCredentialsToken(): Promise<string> {
   try {
     console.log('Obtendo novo token de autenticação...');
-    console.log('CLIENT_ID:', CLIENT_ID);
-    console.log('CLIENT_SECRET (parcial):', CLIENT_SECRET ? CLIENT_SECRET.substring(0, 10) + '...' : 'não definido');
+    console.log('clientId:', CLIENT_ID);
+    console.log('clientSecret (parcial):', CLIENT_SECRET ? CLIENT_SECRET.substring(0, 10) + '...' : 'não definido');
 
     const AUTH_URL = `${IFOOD_API_URL}/authentication/v1.0/oauth/token`;
 
     const params = new URLSearchParams();
-    params.append('grant_type', 'client_credentials');
-    params.append('client_id', CLIENT_ID as string);
-    params.append('client_secret', CLIENT_SECRET as string);
+    params.append('grantType', 'client_credentials');
+    params.append('clientId', CLIENT_ID as string);
+    params.append('clientSecret', CLIENT_SECRET as string);
 
     console.log('Enviando requisição para:', AUTH_URL);
     console.log('Dados da requisição:', params.toString());
 
     const response = await axios.post<AuthResponse>(
       AUTH_URL,
-      params.toString(), // <- Aqui!
+      params.toString(),
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -45,9 +45,10 @@ export async function getClientCredentialsToken(): Promise<string> {
     console.log('Status da resposta:', response.status);
     console.log('Resposta da requisição de token:', JSON.stringify(response.data, null, 2));
 
-    if (response.data && response.data.access_token) {
-      authToken = response.data.access_token;
-      tokenExpiration = new Date(Date.now() + (response.data.expires_in * 1000) - 300000);
+    if (response.data && response.data.accessToken) {
+      // Usando o novo nome do campo 'accessToken' em vez de 'access_token'
+      authToken = response.data.accessToken;
+      tokenExpiration = new Date(Date.now() + (response.data.expiresIn * 1000) - 300000);
       console.log('Token obtido com sucesso. Expira em:', tokenExpiration);
       return authToken;
     } else {

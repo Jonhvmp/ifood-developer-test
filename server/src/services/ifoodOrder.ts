@@ -1,6 +1,6 @@
 // src/services/ifoodOrder.ts
 import axios from 'axios';
-import { Order, PollingEvent, TrackingInfo, CancellationRequest } from '../types/index.js';
+import { Order, PollingEvent, TrackingInfo, CancellationRequest, CatalogItem, Merchant } from '../types/index.js';
 import * as ifoodAuth from './ifoodAuth.js';
 
 class IfoodOrderService {
@@ -151,6 +151,142 @@ class IfoodOrderService {
       return response.data;
     } catch (error) {
       console.error(`Erro ao rastrear entrega do pedido ${orderId}:`,
+        axios.isAxiosError(error) ? error.response?.data : error);
+      throw error;
+    }
+  }
+
+  // ===== NOVAS FUNCIONALIDADES =====
+
+  // Obter informações do restaurante
+  async getMerchantInfo(merchantId: string): Promise<Merchant> {
+    try {
+      const headers = await ifoodAuth.getAuthHeaders();
+      const response = await axios.get<Merchant>(
+        `${this.baseUrl}/merchant/v1.0/merchants/${merchantId}`,
+        { headers }
+      );
+      console.log(`Informações do restaurante ${merchantId} obtidas com sucesso`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao obter informações do restaurante ${merchantId}:`,
+        axios.isAxiosError(error) ? error.response?.data : error);
+      throw error;
+    }
+  }
+
+  // Buscar cardápio/catálogo do restaurante
+  async getMerchantCatalog(merchantId: string): Promise<CatalogItem[]> {
+    try {
+      const headers = await ifoodAuth.getAuthHeaders();
+      const response = await axios.get<CatalogItem[]>(
+        `${this.baseUrl}/catalog/v1.0/merchants/${merchantId}/catalog`,
+        { headers }
+      );
+      console.log(`Catálogo do restaurante ${merchantId} obtido com sucesso`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao obter catálogo do restaurante ${merchantId}:`,
+        axios.isAxiosError(error) ? error.response?.data : error);
+      throw error;
+    }
+  }
+
+  // Alterar status de disponibilidade de um item do cardápio
+  async updateItemAvailability(merchantId: string, externalCode: string, available: boolean): Promise<boolean> {
+    try {
+      const headers = await ifoodAuth.getAuthHeaders();
+      await axios.patch(
+        `${this.baseUrl}/catalog/v1.0/merchants/${merchantId}/items/${externalCode}/status`,
+        { available },
+        { headers }
+      );
+      console.log(`Disponibilidade do item ${externalCode} atualizada com sucesso`);
+      return true;
+    } catch (error) {
+      console.error(`Erro ao atualizar disponibilidade do item ${externalCode}:`,
+        axios.isAxiosError(error) ? error.response?.data : error);
+      throw error;
+    }
+  }
+
+  // Obter histórico de pedidos por período
+  async getOrdersHistory(merchantId: string, startDate: string, endDate: string): Promise<Order[]> {
+    try {
+      const headers = await ifoodAuth.getAuthHeaders();
+      const response = await axios.get<Order[]>(
+        `${this.baseUrl}/order/v1.0/merchants/${merchantId}/orders`,
+        {
+          headers,
+          params: {
+            startDate,
+            endDate
+          }
+        }
+      );
+      console.log(`Histórico de pedidos obtido com sucesso (${response.data.length} pedidos)`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao obter histórico de pedidos:`,
+        axios.isAxiosError(error) ? error.response?.data : error);
+      throw error;
+    }
+  }
+
+  // Alterar status de operação do restaurante (aberto/fechado)
+  async updateMerchantStatus(merchantId: string, isOpen: boolean): Promise<boolean> {
+    try {
+      const headers = await ifoodAuth.getAuthHeaders();
+      await axios.post(
+        `${this.baseUrl}/merchant/v1.0/merchants/${merchantId}/status`,
+        { operation: isOpen ? 'OPEN' : 'CLOSED' },
+        { headers }
+      );
+      console.log(`Status do restaurante ${merchantId} atualizado para ${isOpen ? 'ABERTO' : 'FECHADO'}`);
+      return true;
+    } catch (error) {
+      console.error(`Erro ao atualizar status do restaurante ${merchantId}:`,
+        axios.isAxiosError(error) ? error.response?.data : error);
+      throw error;
+    }
+  }
+
+  // Adicionar ou atualizar promoção
+  async createOrUpdatePromotion(merchantId: string, promotion: any): Promise<boolean> {
+    try {
+      const headers = await ifoodAuth.getAuthHeaders();
+      await axios.post(
+        `${this.baseUrl}/promotion/v1.0/merchants/${merchantId}/promotions`,
+        promotion,
+        { headers }
+      );
+      console.log(`Promoção criada/atualizada com sucesso para o restaurante ${merchantId}`);
+      return true;
+    } catch (error) {
+      console.error(`Erro ao criar/atualizar promoção para o restaurante ${merchantId}:`,
+        axios.isAxiosError(error) ? error.response?.data : error);
+      throw error;
+    }
+  }
+
+  // Obter métricas de desempenho do restaurante
+  async getMerchantPerformance(merchantId: string, startDate: string, endDate: string): Promise<any> {
+    try {
+      const headers = await ifoodAuth.getAuthHeaders();
+      const response = await axios.get(
+        `${this.baseUrl}/merchant/v1.0/merchants/${merchantId}/performance`,
+        {
+          headers,
+          params: {
+            startDate,
+            endDate
+          }
+        }
+      );
+      console.log(`Métricas de desempenho obtidas com sucesso para o restaurante ${merchantId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao obter métricas de desempenho para o restaurante ${merchantId}:`,
         axios.isAxiosError(error) ? error.response?.data : error);
       throw error;
     }
