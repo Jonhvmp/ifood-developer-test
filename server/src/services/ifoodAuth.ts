@@ -8,6 +8,10 @@ const IFOOD_API_URL = 'https://merchant-api.ifood.com.br';
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
+if (!CLIENT_ID || !CLIENT_SECRET) {
+  throw new Error('CLIENT_ID ou CLIENT_SECRET não definidos! Verifique seu .env.');
+}
+
 let authToken: string | null = null;
 let tokenExpiration: Date | null = null;
 
@@ -19,18 +23,17 @@ export async function getClientCredentialsToken(): Promise<string> {
 
     const AUTH_URL = `${IFOOD_API_URL}/authentication/v1.0/oauth/token`;
 
-    // CORRETO: Usando URLSearchParams para formar o body
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
-    params.append('client_id', CLIENT_ID || '');
-    params.append('client_secret', CLIENT_SECRET || '');
+    params.append('client_id', CLIENT_ID as string);
+    params.append('client_secret', CLIENT_SECRET as string);
 
     console.log('Enviando requisição para:', AUTH_URL);
     console.log('Dados da requisição:', params.toString());
 
     const response = await axios.post<AuthResponse>(
       AUTH_URL,
-      params,
+      params.toString(), // <- Aqui!
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
